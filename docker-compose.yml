@@ -1,0 +1,50 @@
+# NextCloudとMariaDBをセットアップするためのDocker Composeファイル
+
+version: '3.8'
+
+services:
+  # NextCloudウェブサーバーのコンテナ定義
+  nextcloud:
+    image: nextcloud:latest # NextCloudの最新イメージを使用
+    container_name: nextcloud_app
+    ports:
+      - "8080:80" # ホストの8080ポートをコンテナの80ポートにマッピング
+    volumes:
+      # /mnt/nextcloud_dataディレクトリをコンテナ内のNextCloudデータディレクトリにバインドマウント
+      # このパスは、外付けSSDをマウントしたホストOS上のパスに合わせる必要がある
+      - /mnt/nextcloud_data:/var/www/html/data
+      # 設定ファイル、テーマ、アプリの永続化
+      - nextcloud_html:/var/www/html
+    environment:
+      # NextCloudの環境変数を定義。この値はnextcloud-config.envファイルから読み込む
+      - NEXTCLOUD_TRUSTED_DOMAINS=${NEXTCLOUD_TRUSTED_DOMAINS}
+      - MYSQL_DATABASE=${MYSQL_DATABASE}
+      - MYSQL_USER=${MYSQL_USER}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+      - MYSQL_HOST=db # データベースサービスの名前を指定
+    depends_on:
+      - db # NextCloudコンテナを起動する前に、dbコンテナが起動していることを保証
+    restart: always # コンテナが終了した場合、常に再起動する設定
+
+  # データベースコンテナの定義 (NextCloudはMariaDBを推奨)
+  db:
+    image: mariadb:10.5 # MariaDBの安定版を使用
+    container_name: nextcloud_db
+    command: --transaction-isolation=READ-COMMITTED --binlog-format=ROW # NextCloudの推奨設定
+    volumes:
+      # データベースデータを永続化するためのボリューム
+      - nextcloud_db:/var/lib/mysql
+    environment:
+      # データベースの環境変数を定義。この値はnextcloud-config.envファイルから読み込む
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - MYSQL_DATABASE=${MYSQL_DATABASE}
+      - MYSQL_USER=${MYSQL_USER}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+    restart: always # コンテナが終了した場合、常に再起動する設定
+
+# データ永続化のためのボリューム定義
+# `nextcloud_data`はホストのパスにバインドマウントするので、`volumes`セクションには記載しない
+volumes:
+  nextcloud_db: # データベースの永続化用ボリューム
+  nextcloud_html: # NextCloudの設定ファイルやアプリ、テーマの永続化用ボリューム
+  
